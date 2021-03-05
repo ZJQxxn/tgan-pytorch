@@ -5,3 +5,10 @@ samples/*
 !samples/.gitkeep
 checkpoints/*
 !checkpoints/.gitkeep
+.idea/deployment.xml
+.idea/inspectionProfiles/profiles_settings.xml
+.idea/inspectionProfiles/Project_Default.xml
+.idea/misc.xml
+.idea/modules.xml
+.idea/tgan-pytorch.iml
+.idea/vcs.xml

@@ -15,7 +15,7 @@ from models.temporal_discriminator import Model as Dis
 from dataset import MovingMNIST
 
 parser = argparse.ArgumentParser(description="TemporalGAN")
-parser.add_argument("--config", default="config.yml", help="Path for the config file")
+parser.add_argument("--config", default="test.yml", help="Path for the config file")
 args = parser.parse_args()
 
 with open(args.config) as f:
@@ -40,9 +40,10 @@ def calc_gradient_penalty(netD, real_data, fake_data):
     gradient_penalty = ((gradients.norm(2, dim=1) - 1) **2).mean() * opt['lambda']
     return gradient_penalty
 
-dset = MovingMNIST(opt['dataset_path'])
+# dset = MovingMNIST(opt['dataset_path'])
+dset = MovingMNIST("./data/mnist_test_seq.npy")
 denormalizer = dset.denormalize
-loader = DataLoader(dset, batch_size=opt["batch_size"], shuffle=True, num_workers=4)
+loader = DataLoader(dset, batch_size=opt["batch_size"], shuffle=True, num_workers=0)
 loader_iterator = iter(loader)
 data_len = len(loader)
 
@@ -75,7 +76,8 @@ if opt['resume'] != "":
     print("Loaded saved models")
 
 #Tensors for gradients computation
-one = torch.FloatTensor([1])
+# one = torch.FloatTensor([1])
+one = torch.tensor(1, dtype=torch.float)
 mone = one * -1
 if opt['use_cuda']:
     one = one.cuda()
@@ -89,7 +91,7 @@ gen.train()
 dis.train()
 for epoch in range(start_epoch, opt['epochs']):
     start_time = time.time()
-    
+    # print("| epoch {} |".format(epoch))
     for p in dis.parameters(): p.requires_grad = True
     
     for i in range(opt['dis_iters']):
@@ -108,7 +110,7 @@ for epoch in range(start_epoch, opt['epochs']):
 
         d_real_loss = dis(real_data)
         d_real_loss = d_real_loss.mean()
-        d_real_loss.backward(mone)   
+        d_real_loss.backward(mone)
     
         z = gen.generate_input(opt["batch_size"])
         if opt['use_cuda']:
@@ -128,9 +130,11 @@ for epoch in range(start_epoch, opt['epochs']):
         loss = d_fake_loss - d_real_loss + gradient_penalty
         
         #Simple visual feedback
-        sys.stdout.flush()
-        sys.stdout.write("\r" + "Epoch "+ str(epoch) + " | Loss for discriminator: " + str(loss.data[0]))
-        sys.stdout.flush()
+        # sys.stdout.flush()
+        # sys.stdout.write("\r" + "Epoch "+ str(epoch) + " | Loss for discriminator: " + str(loss.data.item()))
+        # sys.stdout.flush()
+
+        print("\r" + "Epoch "+ str(epoch) + " | Loss for discriminator: " + str(loss.data.item()))
         optimizerD.step()
     
     ######Generator training######
@@ -155,7 +159,7 @@ for epoch in range(start_epoch, opt['epochs']):
     ###Savings###
     if (epoch - start_epoch) % opt['save_every'] == 0:
         print()
-        print("Saving for epoch {}. Gen loss: {:.2f} | Dis loss: {:.2f}".format(epoch, gen_loss.data[0], loss.data[0]))
+        print("Saving for epoch {}. Gen loss: {:.2f} | Dis loss: {:.2f}".format(epoch, gen_loss.data.item(), loss.data.item()))
         
         #Save summary image
         samples_path = '.' if opt['samples_path'] == "" else opt['samples_path']

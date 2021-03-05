@@ -14,8 +14,8 @@ class MovingMNIST(Dataset):
         self.n_frames = n_frames #This can't be greater than 20
         
         #self.normalize = transforms.Normalize(self.norm_mean, self.norm_std)
-        self.normalize = lambda x: (x - 128)/128
-        self.denormalize = lambda x: x*128 + 128
+        # self.normalize = lambda x: (x - 128)/128
+        # self.denormalize = lambda x: x*128 + 128
 
     def __len__(self):
         return self.data.size(0)
@@ -27,9 +27,15 @@ class MovingMNIST(Dataset):
         x = self.normalize(x)
         return x
 
+    def normalize(self, x):
+        return (x - 128)/128
+
+    def denormalize(self, x):
+        return x*128 + 128
+
 
 if __name__ == "__main__":
-    dset = MovingMNIST("mnist_test_seq.npy")
+    dset = MovingMNIST("./data/mnist_test_seq.npy")
     zero = dset[0]
     print(type(zero))
     print(zero.size())
