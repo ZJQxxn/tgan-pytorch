@@ -12,7 +12,7 @@ epochs: 5000
 
 models:
     generator:
-        fn: models/temporal_generator.py
+        fn: generator.py
         z_slow_dim: 256
         z_fast_dim: 256
         out_channels: 1
@@ -20,7 +20,7 @@ models:
         conv_ch: 512
 
     discriminator:
-        fn: models/temporal_discriminator.py
+        fn: discriminator.py
         name: TemporalDiscriminator
         in_channels: 1
         mid_ch: 62
