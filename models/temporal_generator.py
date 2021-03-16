@@ -6,7 +6,7 @@ import os
 from torch.autograd import Variable
 
 class FrameSeedGenerator(nn.Module):
-    #Generate exactly 16 latent vectors starting from 1
+    # Generate exactly 16 latent vectors starting from 1
     def __init__(self, z_slow_dim, z_fast_dim):
         super().__init__()
         self.z_slow_dim = z_slow_dim

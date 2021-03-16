@@ -10,14 +10,15 @@ from torch.optim import Adam
 
 from torchvision.utils import make_grid, save_image
 
-sys.path.append("./")
-from generator import Model as Gen
-from discriminator import Model as Dis
-from scDataLoader import MovingMNIST
-
+# sys.path.append("./")
+from simulated_sc.generator import Model as Gen
+from simulated_sc.discriminator import Model as Dis
+# from scDataLoader import MovingMNIST
+from simulated_sc.simulatedDataLoader import simulatedData
+from simulated_sc.evaluation import MSE, correlation
 
 parser = argparse.ArgumentParser(description="TemporalGAN")
-parser.add_argument("--config", default="test.yml", help="Path for the config file")
+parser.add_argument("--config", default="simulated_sc.yml", help="Path for the config file")
 args = parser.parse_args()
 
 with open(args.config) as f:
@@ -26,7 +27,9 @@ with open(args.config) as f:
 torch.manual_seed(opt['seed'])
 
 def calc_gradient_penalty(netD, real_data, fake_data):
-    alpha = torch.rand(opt['batch_size'], 1, 1, 1, 1)
+    # batch_size, time_points, genes_num = real_data.size()
+    # alpha = torch.rand(batch_size, time_points, genes_num)
+    alpha = torch.rand(opt['batch_size'], opt['time_points'], opt["genes_num"])
     alpha = alpha.expand_as(real_data)
     alpha = alpha.cuda() if opt['use_cuda'] else alpha
     interpolates = alpha * real_data + ((1 - alpha) * fake_data)
@@ -50,8 +53,8 @@ def calc_gradient_penalty(netD, real_data, fake_data):
     return gradient_penalty
 
 
-dset = MovingMNIST(opt["dataset_path"])
-denormalizer = dset.denormalize
+dset = simulatedData(opt["dataset_path"], time_points = opt["time_points"])
+# denormalizer = dset.denormalize
 loader = DataLoader(dset, batch_size=opt["batch_size"], shuffle=True, num_workers=0)
 loader_iterator = iter(loader)
 data_len = len(loader)
@@ -59,11 +62,9 @@ data_len = len(loader)
 gen_o = opt['models']['generator']
 dis_o = opt['models']['discriminator']
 
-gen = Gen(z_slow_dim=gen_o["z_slow_dim"], z_fast_dim=gen_o["z_fast_dim"],
-          out_channels=gen_o["out_channels"], 
-          bottom_width=gen_o["bottom_width"], conv_ch=gen_o["conv_ch"])
+gen = Gen(opt["z_slow_dim"], opt["z_fast_dim"], opt["genes_num"], opt["time_points"], opt["batch_size"])
 
-dis = Dis(in_channels=dis_o["in_channels"], mid_ch=dis_o["mid_ch"])
+dis = Dis(opt["genes_num"], opt["time_points"], opt["batch_size"])
 
 if opt['use_cuda']:
     start = time.time()
@@ -105,10 +106,12 @@ for epoch in range(start_epoch, opt['epochs']):
     
     for i in range(opt['dis_iters']):
         dis.zero_grad()
-        
         #retrieve another iterator and start a new epoch if dataset is exhausted
         try:
             real_data = next(loader_iterator)
+            if real_data.size()[0] != opt["batch_size"]:
+                loader_iterator = iter(loader)
+                real_data = next(loader_iterator)
         except StopIteration:
             loader_iterator = iter(loader)
             break
@@ -116,12 +119,18 @@ for epoch in range(start_epoch, opt['epochs']):
         if opt['use_cuda']:
             real_data = real_data.cuda()
         real_data = Variable(real_data)
+        # real_data = real_data.permute(1, 0, 2)
 
         d_real_loss = dis(real_data)
         d_real_loss = d_real_loss.mean()
-        d_real_loss.backward(mone)
+
+        if i == 0:
+            d_real_loss.backward(mone, retain_graph=True)
+        else:
+            d_real_loss.backward(mone)
+
     
-        z = gen.generate_input(opt["batch_size"])
+        z = gen.generate_input(opt["batch_size"], opt["time_points"])
         if opt['use_cuda']:
             z = z.cuda()
         #Disable computation of gradients in generator thanks to volatile
@@ -137,11 +146,6 @@ for epoch in range(start_epoch, opt['epochs']):
         gradient_penalty.backward()
 
         loss = d_fake_loss - d_real_loss + gradient_penalty
-        
-        #Simple visual feedback
-        # sys.stdout.flush()
-        # sys.stdout.write("\r" + "Epoch "+ str(epoch) + " | Loss for discriminator: " + str(loss.data.item()))
-        # sys.stdout.flush()
 
         print("\r" + "Epoch "+ str(epoch) + " | Loss for discriminator: " + str(loss.data.item()))
         optimizerD.step()
@@ -164,21 +168,26 @@ for epoch in range(start_epoch, opt['epochs']):
     
     end_time = time.time()
     epoch_time = end_time - start_time
-    
-    ###Savings###
-    if (epoch - start_epoch) % opt['save_every'] == 0:
-        print()
-        print("Saving for epoch {}. Gen loss: {:.2f} | Dis loss: {:.2f}".format(epoch, gen_loss.data.item(), loss.data.item()))
-        
-        #Save summary image
-        samples_path = '.' if opt['samples_path'] == "" else opt['samples_path']
-        videos = fake_data.data
-        video_seq = videos.view(videos.size(0)*videos.size(1), videos.size(2), videos.size(3), videos.size(4))
-        video_grid = make_grid(video_seq, nrow=videos.size(0))
-        save_image(denormalizer(video_grid), samples_path+"/"+str(epoch)+".png")
 
-        #Save checkpoint
-        base_path = "." if opt['checkpoint_base'] == "" else opt['checkpoint_base']
-        cp_data = {'epoch': epoch, "epoch_time":epoch_time, "gen_state_dict":gen.state_dict(),
-    "dis_state_dict":dis.state_dict(), "last_generated_videos":fake_data.data, "dis_loss":loss, "gen_loss":gen_loss}
-        torch.save(cp_data, base_path+"/"+"checkpoint"+str(epoch)+".pth")
+    # compute correlations for every several epochs
+
+    corr = correlation(real_data, fake_data)
+    mse = MSE(real_data, fake_data)
+    print("MSE = {}, Correlation = {}".format(mse, corr))
+    # ###Savings###
+    # if (epoch - start_epoch) % opt['save_every'] == 0:
+    #     print()
+    #     print("Saving for epoch {}. Gen loss: {:.2f} | Dis loss: {:.2f}".format(epoch, gen_loss.data.item(), loss.data.item()))
+    #
+    #     #Save summary image
+    #     samples_path = '.' if opt['samples_path'] == "" else opt['samples_path']
+    #     videos = fake_data.data
+    #     video_seq = videos.view(videos.size(0)*videos.size(1), videos.size(2), videos.size(3), videos.size(4))
+    #     video_grid = make_grid(video_seq, nrow=videos.size(0))
+    #     save_image(denormalizer(video_grid), samples_path+"/"+str(epoch)+".png")
+    #
+    #     #Save checkpoint
+    #     base_path = "." if opt['checkpoint_base'] == "" else opt['checkpoint_base']
+    #     cp_data = {'epoch': epoch, "epoch_time":epoch_time, "gen_state_dict":gen.state_dict(),
+    # "dis_state_dict":dis.state_dict(), "last_generated_videos":fake_data.data, "dis_loss":loss, "gen_loss":gen_loss}
+    #     torch.save(cp_data, base_path+"/"+"checkpoint"+str(epoch)+".pth")
