@@ -1,0 +1,27 @@
+name: "mose_cell"
+lambda: 10
+checkpoint_base: ./mouse_checkpoint
+samples_path: samples
+save_every: 50
+resume: ""
+seed: 0
+use_cuda: False
+dataset_path: "../mouse_cell/sampling_cell_data.npy"
+dis_iters: 10
+epochs: 100000
+lr: 1e-2
+
+z_slow_dim: 128
+z_fast_dim: 128
+genes_num: 2000
+time_points: 5
+batch_size: 256
+models:
+    generator:
+        fn: generator.py
+        name: TemporalGenerator
+
+
+    discriminator:
+        fn: discriminator.py
+        name: TemporalDiscriminator

@@ -13,3 +13,5 @@ checkpoints/*
 .idea/tgan-pytorch.iml
 .idea/vcs.xml
 *.mtx
+simulated_sc/mose_cell_training_history.npy
+mouse_cell/sampling_cell_data.npy

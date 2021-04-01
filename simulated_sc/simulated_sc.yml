@@ -1,13 +1,14 @@
 lambda: 10
-checkpoint_base: checkpoints
+checkpoint_base: ./checkpoint
 samples_path: samples
-save_every: 100
+save_every: 10
 resume: ""
 seed: 0
 use_cuda: False
 dataset_path: "../data/sc_simulated_data.npy"
-dis_iters: 5
-epochs: 5000
+dis_iters: 10
+epochs: 100
+lr: 1e-2
 
 z_slow_dim: 128
 z_fast_dim: 128

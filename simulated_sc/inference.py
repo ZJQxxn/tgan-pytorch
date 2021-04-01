@@ -2,7 +2,6 @@ import argparse
 import sys
 import yaml
 import time
-import os
 
 import torch
 from torch.autograd import Variable, grad
@@ -11,21 +10,18 @@ from torch.optim import Adam, RMSprop
 
 import numpy as np
 
-torch.set_num_threads(10)
 
 from torchvision.utils import make_grid, save_image
 
-sys.path.append("./")
-from generator import Model as Gen
-from discriminator import Model as Dis
+# sys.path.append("./")
+from simulated_sc.generator import Model as Gen
+from simulated_sc.discriminator import Model as Dis
 # from scDataLoader import MovingMNIST
-from simulatedDataLoader import simulatedData
-from scDataLoader import SCData
-from evaluation import MSE, correlation
+from simulated_sc.simulatedDataLoader import simulatedData
+from simulated_sc.evaluation import MSE, correlation
 
 parser = argparse.ArgumentParser(description="TemporalGAN")
-# parser.add_argument("--config", default="simulated_sc.yml", help="Path for the config file")
-parser.add_argument("--config", default="mouse_sc.yml", help="Path for the config file")
+parser.add_argument("--config", default="simulated_sc.yml", help="Path for the config file")
 args = parser.parse_args()
 
 with open(args.config) as f:
@@ -60,9 +56,7 @@ def calc_gradient_penalty(netD, real_data, fake_data):
     return gradient_penalty
 
 
-# dset = simulatedData(opt["dataset_path"], time_points = opt["time_points"])
-dset = SCData(opt["dataset_path"])
-
+dset = simulatedData(opt["dataset_path"], time_points = opt["time_points"])
 # denormalizer = dset.denormalize
 loader = DataLoader(dset, batch_size=opt["batch_size"], shuffle=True, num_workers=0)
 loader_iterator = iter(loader)
@@ -103,20 +97,19 @@ if opt['use_cuda']:
     mone = mone.cuda()
 
 #Default optimizers
-optimizerD = Adam(dis.parameters(), lr=float(opt['lr']), betas=(0.5, 0.9))
-optimizerG = Adam(gen.parameters(), lr=float(opt['lr']), betas=(0.5, 0.9))
-# optimizerD = RMSprop(dis.parameters(), lr=float(opt['lr']))
-# optimizerG = RMSprop(gen.parameters(), lr=float(opt['lr']))
+# optimizerD = Adam(dis.parameters(), lr=float(opt['lr']), betas=(0.5, 0.9))
+# optimizerG = Adam(gen.parameters(), lr=float(opt['lr']), betas=(0.5, 0.9))
+optimizerD = RMSprop(dis.parameters(), lr=float(opt['lr']))
+optimizerG = RMSprop(gen.parameters(), lr=float(opt['lr']))
 
 gen.train()
 dis.train()
 
 dis_loss_history = []
 gen_loss_history = []
-real_loss_history = []
 MSE_history = []
 correlation_hostory = []
-
+real_loss_history = []
 
 for epoch in range(start_epoch, opt['epochs']):
     start_time = time.time()
@@ -206,10 +199,7 @@ for epoch in range(start_epoch, opt['epochs']):
         print("Saving for epoch {}. Gen loss: {:.2f} | Dis loss: {:.2f}".format(epoch, gen_loss.data.item(), loss.data.item()))
         print("*"*50)
         #Save checkpoint
-        # base_path = "./checkpoint" if opt['checkpoint_base'] == "" else opt['checkpoint_base']
-        if opt["name"] + "_checkpoint" not in os.listdir("./"):
-            os.mkdir(opt["name"] + "_checkpoint")
-        base_path = opt["name"] + "_checkpoint"
+        base_path = "." if opt['checkpoint_base'] == "" else opt['checkpoint_base']
         cp_data = {
             'epoch': epoch,
             "epoch_time":epoch_time,
@@ -224,8 +214,8 @@ for epoch in range(start_epoch, opt['epochs']):
             "correlation_history": correlation_hostory,
             "real_loss_history": real_loss_history
         }
-        torch.save(cp_data, base_path+"/"+"checkpoint_{:0>5d}".format(epoch)+".pth")
+        torch.save(cp_data, base_path+"/"+"checkpoint"+str(epoch)+".pth")
 
     # Save overall history
-    np.save("{}_training_history.npy".format(opt["name"]), {"dis_loss_history": dis_loss_history, "gen_loss_history": gen_loss_history,
+    np.save("training_history.npy", {"dis_loss_history": dis_loss_history, "gen_loss_history": gen_loss_history,
              "MSE_history": MSE_history, "correlation_history": correlation_hostory, "real_loss_history": real_loss_history})

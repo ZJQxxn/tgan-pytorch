@@ -61,6 +61,68 @@ class FrameSeedGenerator(nn.Module):
         return z_fast
 
 
+
+class LinearFrameSeedGenerator(nn.Module):
+    # def __init__(self, z_slow_dim, z_fast_dim, time_points, bath_size):
+    #     super().__init__()
+    #     self.z_slow_dim = z_slow_dim * bath_size
+    #     self.z_fast_dim = z_fast_dim * bath_size
+    #     self.time_points = time_points
+    #
+    #     self.dc0 = nn.Linear(self.z_slow_dim, 1024)
+    #     self.dc1 = nn.Linear(1024, 512)
+    #     self.dc2 = nn.Linear(512, 256)
+    #     self.dc3 = nn.Linear(256, 128)
+    #     self.dc4 = nn.Linear(128, self.z_fast_dim)
+    #     self.bn0 = nn.BatchNorm1d(1024)
+    #     self.bn1 = nn.BatchNorm1d(512)
+    #     self.bn2 = nn.BatchNorm1d(256)
+    #     self.bn3 = nn.BatchNorm1d(128)
+    #
+    # def forward(self, z_slow):
+    #     # h = z_slow.view(z_slow.size(0),-1, 1) #
+    #     # repeat_z_slow = z_slow.repeat(time_points, 1).view(time_points, -1)
+    #     # h = copy.deepcopy(repeat_z_slow) # h.permute(1, 0, 2)
+    #     h = copy.deepcopy(z_slow) # h.permute(1, 0, 2)
+    #     h = F.relu(self.bn0(self.dc0(h)))
+    #     h = F.relu(self.bn1(self.dc1(h)))
+    #     h = F.relu(self.bn2(self.dc2(h)))
+    #     h = F.relu(self.bn3(self.dc3(h)))
+    #     z_fast = F.tanh(self.dc4(h))
+    #     return z_fast
+
+    def __init__(self, z_slow_dim, z_fast_dim, time_points):
+        super().__init__()
+        self.z_slow_dim = z_slow_dim
+        self.z_fast_dim = z_fast_dim
+        self.time_points = time_points
+
+        self.l0 = nn.Linear(self.z_slow_dim, 1024)
+        self.l1 = nn.Linear(1024, 512)
+        self.l2 = nn.Linear(512, 256)
+        self.l3 = nn.Linear(256, 128)
+        self.l4 = nn.Linear(128, self.z_fast_dim)
+        self.bn0 = nn.BatchNorm1d(1024)
+        self.bn1 = nn.BatchNorm1d(512)
+        self.bn2 = nn.BatchNorm1d(256)
+        self.bn3 = nn.BatchNorm1d(128)
+
+
+    def forward(self, z_slow):
+        # h = z_slow.view(z_slow.size(0), -1, 1)
+        batch_size = z_slow.size()[0]
+        time_points = self.time_points
+        h = z_slow.repeat(time_points, 1)
+        h = F.relu(self.bn0(self.l0(h)))
+        h = F.relu(self.bn1(self.l1(h)))
+        h = F.relu(self.bn2(self.l2(h)))
+        h = F.relu(self.bn3(self.l3(h)))
+        z_fast = F.tanh(self.l4(h))
+        z_fast = z_fast.view(batch_size, time_points, -1).permute(0, 2, 1)
+        return z_fast
+
+
+
 class VideoGenerator(nn.Module): #TODO: for atch data; for every time step; for every cell
     def __init__(self, z_slow_dim, z_fast_dim, genes_dim):
         super().__init__()
@@ -102,9 +164,9 @@ class Model(nn.Module):
         self.time_points = time_points
         self.batch_size = batch_size
 
-        # self._fsgen = FrameSeedGenerator(self.z_slow_dim, self.z_fast_dim, self.time_points, self.batch_size)
-        # self._vgen = VideoGenerator(self.z_slow_dim, self.z_fast_dim, self.genes_dim, self.batch_size)
-        self._fsgen = FrameSeedGenerator(self.z_slow_dim, self.z_fast_dim)
+
+        # self._fsgen = FrameSeedGenerator(self.z_slow_dim, self.z_fast_dim)
+        self._fsgen = LinearFrameSeedGenerator(self.z_slow_dim, self.z_fast_dim, self.time_points)
         self._vgen = VideoGenerator(self.z_slow_dim, self.z_fast_dim, self.genes_dim)
 
     def generate_input(self, batch_size=16, time_points = 5):
